@@ -51,6 +51,23 @@ func main() {
 	}
 	log.Println("Connected to MongoDB!")
 
+	// Create collections
+	db := client.Database("secondlife")
+	collections := []string{"users", "products", "orders", "sales"}
+	for _, coll := range collections {
+		err = db.CreateCollection(ctx, coll)
+		if err != nil {
+			// Ignore "collection already exists" errors
+			if mongo.IsDuplicateKeyError(err) || mongo.IsCommandError(err) && err.(mongo.CommandError).Code == 48 {
+				log.Printf("Collection '%s' already exists, skipping creation.\n", coll)
+			} else {
+				log.Fatalf("Failed to create collection '%s': %v", coll, err)
+			}
+		} else {
+			log.Printf("Collection '%s' created successfully.\n", coll)
+		}
+	}
+
 	r := gin.Default()
 
 	// CORS middleware
