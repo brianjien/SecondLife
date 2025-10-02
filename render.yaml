@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: secondlife-backend
+    env: go
+    plan: free
+    buildCommand: "cd backend && go build -o main ."
+    startCommand: "cd backend && ./main"
+    healthCheckPath: /ping
+    envVars:
+      - key: GIN_MODE
+        value: release
+      - key: MONGO_URI
+        fromDatabase:
+          name: secondlife-mongo
+          property: connectionString
+
+  - type: web
+    name: secondlife-frontend
+    env: static
+    plan: free
+    buildCommand: "cd frontend && npm install && npm run build"
+    staticPublishPath: ./frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  - name: secondlife-mongo
+    plan: free
+    databaseName: secondlife
+    ipAllowList: [] # Allows connections from anywhere
