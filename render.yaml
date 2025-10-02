@@ -27,6 +27,6 @@ services:
 
 databases:
   - name: secondlife-mongo
-    plan: free
+    plan: starter
     databaseName: secondlife
-    ipAllowList: [] # Allows connections from anywhere
+    ipAllowList: []
