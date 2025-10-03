@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
-	"net/http"
 	"os"
-	"path/filepath"
 	"secondlife/backend/handlers"
 	"strings"
 	"time"
@@ -97,34 +95,12 @@ func main() {
 	}
 
 	// Serve frontend static files
-	r.Use(staticFileServer("./frontend/dist"))
+	r.Static("/assets", "./frontend/dist/assets")
+	r.NoRoute(func(c *gin.Context) {
+		if !strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.File("./frontend/dist/index.html")
+		}
+	})
 
 	r.Run() // listen and serve on 0.0.0.0:8080
-}
-
-// staticFileServer creates a middleware to serve static files for a Single Page Application.
-func staticFileServer(fsRoot string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// only handle GET and HEAD requests
-		if c.Request.Method != "GET" && c.Request.Method != "HEAD" {
-			c.Next()
-			return
-		}
-
-		// Check if the request is for an API endpoint
-		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-			c.Next()
-			return
-		}
-
-		// Try to serve a file from the filesystem
-		path := filepath.Join(fsRoot, c.Request.URL.Path)
-		if _, err := os.Stat(path); err == nil {
-			http.ServeFile(c.Writer, c.Request, path)
-			return
-		}
-
-		// If the file does not exist, serve the index.html
-		http.ServeFile(c.Writer, c.Request, filepath.Join(fsRoot, "index.html"))
-	}
 }
