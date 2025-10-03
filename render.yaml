@@ -1,11 +1,8 @@
 services:
   - type: web
-    name: secondlife-backend
-    env: go
+    name: secondlife
+    env: docker
     plan: free
-    buildCommand: "cd backend && go build -o main ."
-    startCommand: "cd backend && ./main"
-    healthCheckPath: /ping
     envVars:
       - key: GIN_MODE
         value: release
@@ -13,17 +10,6 @@ services:
         fromDatabase:
           name: secondlife-mongo
           property: connectionString
-
-  - type: web
-    name: secondlife-frontend
-    env: static
-    plan: free
-    buildCommand: "cd frontend && npm install && npm run build"
-    staticPublishPath: ./frontend/dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
 
 databases:
   - name: secondlife-mongo
