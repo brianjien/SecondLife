@@ -96,7 +96,15 @@ func main() {
 
 	// Serve frontend static files
 	r.Static("/assets", "./frontend/dist/assets")
+
+	// Serve the index.html for the root route
+	r.GET("/", func(c *gin.Context) {
+		c.File("./frontend/dist/index.html")
+	})
+
+	// Catch-all for other routes, to support client-side routing
 	r.NoRoute(func(c *gin.Context) {
+		// If the request is not for an API endpoint, serve the index.html
 		if !strings.HasPrefix(c.Request.URL.Path, "/api/") {
 			c.File("./frontend/dist/index.html")
 		}
