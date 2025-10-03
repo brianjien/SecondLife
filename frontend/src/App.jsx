@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart, User, LogOut, Plus, Search, Heart, Package, CreditCard, X, Check, Wallet, ArrowLeft, Lock, ChevronLeft, ChevronRight, UploadCloud, Tag, ChevronDown, Edit, Bell, Send, CornerDownLeft, MessageSquare, Shield, Settings, Star, Camera, QrCode, HelpCircle } from 'lucide-react';
 import { io } from "socket.io-client";
 
-const API_URL = 'http://localhost:8080';
+const API_URL = '/api';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);

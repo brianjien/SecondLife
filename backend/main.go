@@ -2,21 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
-	"secondlife/backend/handlers"
-	"time"
-
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-)
-
-import (
-	"context"
-	"log"
+	"net/http"
 	"os"
+	"path/filepath"
 	"secondlife/backend/handlers"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -31,7 +23,6 @@ func main() {
 		log.Fatal("MONGO_URI environment variable not set")
 	}
 
-	// Set up MongoDB connection
 	client, err := mongo.NewClient(options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		log.Fatal(err)
@@ -44,21 +35,19 @@ func main() {
 	}
 	defer client.Disconnect(ctx)
 
-	// Ping the database to verify connection
 	err = client.Ping(ctx, nil)
 	if err != nil {
 		log.Fatal("Could not connect to MongoDB:", err)
 	}
 	log.Println("Connected to MongoDB!")
 
-	// Create collections
 	db := client.Database("secondlife")
 	collections := []string{"users", "products", "orders", "sales"}
 	for _, coll := range collections {
 		err = db.CreateCollection(ctx, coll)
 		if err != nil {
-			// Ignore "collection already exists" errors
-			if mongo.IsDuplicateKeyError(err) || mongo.IsCommandError(err) && err.(mongo.CommandError).Code == 48 {
+			var cmdErr mongo.CommandError
+			if errors.As(err, &cmdErr) && cmdErr.Code == 48 { // 48 is NamespaceExists
 				log.Printf("Collection '%s' already exists, skipping creation.\n", coll)
 			} else {
 				log.Fatalf("Failed to create collection '%s': %v", coll, err)
@@ -70,50 +59,72 @@ func main() {
 
 	r := gin.Default()
 
-	// CORS middleware
 	r.Use(cors.Default())
 
-	// Store the database client in the Gin context
 	r.Use(func(c *gin.Context) {
 		c.Set("mongoClient", client)
 		c.Next()
 	})
 
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
+	// API routes are grouped under /api
+	api := r.Group("/api")
+	{
+		api.GET("/ping", func(c *gin.Context) {
+			c.JSON(200, gin.H{"message": "pong"})
 		})
-	})
-
-	// User routes
-	userRoutes := r.Group("/users")
-	{
-		userRoutes.POST("/register", handlers.RegisterUser)
-		userRoutes.POST("/login", handlers.LoginUser)
-		userRoutes.GET("/:id", handlers.GetUserByID)
+		userRoutes := api.Group("/users")
+		{
+			userRoutes.POST("/register", handlers.RegisterUser)
+			userRoutes.POST("/login", handlers.LoginUser)
+			userRoutes.GET("/:id", handlers.GetUserByID)
+		}
+		productRoutes := api.Group("/products")
+		{
+			productRoutes.GET("", handlers.GetAllProducts)
+			productRoutes.GET("/:id", handlers.GetProductByID)
+			productRoutes.POST("/:id/questions", handlers.AskQuestion)
+			productRoutes.POST("/:id/questions/:questionId/answer", handlers.AnswerQuestion)
+		}
+		orderRoutes := api.Group("/orders")
+		{
+			orderRoutes.POST("/checkout", handlers.Checkout)
+		}
+		salesRoutes := api.Group("/sales")
+		{
+			salesRoutes.PUT("/:saleId", handlers.UpdateSale)
+			salesRoutes.POST("/:saleId/return", handlers.ProcessReturn)
+		}
 	}
 
-	// Product routes
-	productRoutes := r.Group("/products")
-	{
-		productRoutes.GET("", handlers.GetAllProducts)
-		productRoutes.GET("/:id", handlers.GetProductByID)
-		productRoutes.POST("/:id/questions", handlers.AskQuestion)
-		productRoutes.POST("/:id/questions/:questionId/answer", handlers.AnswerQuestion)
-	}
-
-	// Order routes
-	orderRoutes := r.Group("/orders")
-	{
-		orderRoutes.POST("/checkout", handlers.Checkout)
-	}
-
-	// Sales routes
-	salesRoutes := r.Group("/sales")
-	{
-		salesRoutes.PUT("/:saleId", handlers.UpdateSale)
-		salesRoutes.POST("/:saleId/return", handlers.ProcessReturn)
-	}
+	// Serve frontend static files
+	r.Use(staticFileServer("./frontend/dist"))
 
 	r.Run() // listen and serve on 0.0.0.0:8080
+}
+
+// staticFileServer creates a middleware to serve static files for a Single Page Application.
+func staticFileServer(fsRoot string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// only handle GET and HEAD requests
+		if c.Request.Method != "GET" && c.Request.Method != "HEAD" {
+			c.Next()
+			return
+		}
+
+		// Check if the request is for an API endpoint
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.Next()
+			return
+		}
+
+		// Try to serve a file from the filesystem
+		path := filepath.Join(fsRoot, c.Request.URL.Path)
+		if _, err := os.Stat(path); err == nil {
+			http.ServeFile(c.Writer, c.Request, path)
+			return
+		}
+
+		// If the file does not exist, serve the index.html
+		http.ServeFile(c.Writer, c.Request, filepath.Join(fsRoot, "index.html"))
+	}
 }

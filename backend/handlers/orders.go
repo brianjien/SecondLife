@@ -12,6 +12,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readconcern"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
 // CheckoutRequest defines the structure for the checkout request body
@@ -42,9 +44,10 @@ func Checkout(c *gin.Context) {
 	var createdOrder models.Order
 
 	// Start a transaction
-	err = session.StartTransaction(options.Transaction().
-		SetReadConcern(options.ReadConcern().SetLevel("majority")).
-		SetWriteConcern(options.WriteConcern().SetW("majority")))
+	txnOpts := options.Transaction().
+		SetReadConcern(readconcern.Majority()).
+		SetWriteConcern(writeconcern.New(writeconcern.WMajority()))
+	err = session.StartTransaction(txnOpts)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return
